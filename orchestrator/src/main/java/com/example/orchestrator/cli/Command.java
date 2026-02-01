@@ -23,7 +23,6 @@ public class Command implements CommandLineRunner {
             log.info("OHLCV Path: {} \n Strategy Config Path: {}", OHLCV_PATH, CONFIG_PATH);
         } catch (Exception e) {
             log.error("Backtest failed: {}", e.getMessage());
-            System.exit(1);
         }
     }
 }
