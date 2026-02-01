@@ -84,6 +84,7 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+					<mainClass>com.example.orchestrator.OrchestratorApplication</mainClass>
 				</configuration>
 			</plugin>
 		</plugins>
