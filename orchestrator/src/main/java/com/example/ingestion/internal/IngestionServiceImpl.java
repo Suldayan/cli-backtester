@@ -71,6 +71,7 @@ public class IngestionServiceImpl implements IngestionService {
         }
 
         log.debug("Sending batch of {} to Rust", SIZE);
+        // nativeBridge.processCandleBatch(buffer, batch.size());
     }
 }
 
