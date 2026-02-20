@@ -1,2 +1,6 @@
-package com.example.strategy;public interface StrategyParser {
+package com.example.strategy;
+
+@FunctionalInterface
+public interface StrategyParser {
+    Strategy parse(String path);
 }
