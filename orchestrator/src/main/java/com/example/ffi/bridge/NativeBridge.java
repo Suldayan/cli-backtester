@@ -8,39 +8,27 @@ import java.lang.foreign.*;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
 
-/*
-* TODO:
-*
-Area	Opportunity	Impact
-Arena usage	Avoid Arena.global()	Memory safety, lifetime control
-MethodHandle	Pre‑bind arguments	Lower invocation overhead
-Validation	Remove varargs + reduce checks	Zero allocations, faster hot path
-Exception info	Add context	Better debugging
-Spring	Avoid proxies or lazy load	More predictable startup
-Library path	Make resolution robust	Portability
-Varargs	Remove hidden allocations	GC reduction
-* */
-
 @Slf4j
 @Component
-public class NativeBridge {
+public final class NativeBridge implements AutoCloseable {
+    private final Arena arena;
     private final NativeFunctions functions;
 
     private static final String LIB_NAME = "engine";
     private static final String LIB_PATH = "../engine/target/release/";
-    private static final String INVALID_MEMORY_ACCESS_ERR = "Invalid memory access attempted";
 
     public NativeBridge() {
+        this.arena = Arena.ofConfined();
+        log.info("Loading native library: {}", LIB_NAME);
+
         final String libName = System.mapLibraryName(LIB_NAME);
         final Path libPath = Path.of(LIB_PATH + libName).toAbsolutePath();
-        final SymbolLookup lib = SymbolLookup.libraryLookup(libPath, Arena.global());
+
+        final SymbolLookup lib = SymbolLookup.libraryLookup(libPath, arena);
         final Linker linker = Linker.nativeLinker();
 
         this.functions = new NativeFunctions(lib, linker);
-    }
-
-    public MomentumFunctions getMomentumFunctions() {
-        return functions.momentum;
+        log.info("Native bridge initialized successfully");
     }
 
     public void execute(
@@ -49,19 +37,32 @@ public class NativeBridge {
             final MemorySegment candles,
             final MemorySegment signals,
             final long count) {
-        validate(state);
-        validate(signals);
-        validate(candles);
+        validateSegments(state, candles, signals);
         try {
-            handle.invoke(state, candles, signals, count);
-        } catch (Throwable throwable) {
-            throw new RuntimeException("CRITICAL: Native Engine Failure", throwable);
+            handle.invokeExact(state, candles, signals, count);
+        } catch (Throwable t) {
+            throw new RuntimeException("CRITICAL: Native engine failure", t);
         }
     }
 
-    private static void validate(final MemorySegment seg) {
-        if (seg.address() == 0 || !seg.scope().isAlive()) {
-            throw new IllegalStateException(INVALID_MEMORY_ACCESS_ERR);
+    private void validateSegments(MemorySegment... segments) {
+        if (!arena.scope().isAlive()) {
+            throw new IllegalStateException("Native bridge arena is no longer alive");
         }
+        for (MemorySegment seg : segments) {
+            if (seg.address() == 0) {
+                throw new IllegalStateException("Null memory segment passed to native bridge");
+            }
+        }
+    }
+
+    public MomentumFunctions getMomentumFunctions() {
+        return functions.momentum;
+    }
+
+    @Override
+    public void close() {
+        log.info("Closing native bridge");
+        arena.close();
     }
 }
