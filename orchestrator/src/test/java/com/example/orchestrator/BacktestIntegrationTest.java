@@ -136,7 +136,7 @@ class BacktestIntegrationTest {
                 .filter(msg -> msg.contains("BUY") || msg.contains("SELL"))
                 .forEach(msg -> {
                     assertThat(msg).contains("price:");
-                    assertThat(msg).contains("indicator:");
+                    assertThat(msg).contains("sma(");
                 });
     }
 

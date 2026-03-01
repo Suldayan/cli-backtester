@@ -30,9 +30,10 @@ public class IngestionServiceImpl implements IngestionService {
     private final NativeBridge nativeBridge;
     private final Arena arena;
 
-    // Pre-allocated candle and signal slabs
+    // Pre-allocated indicator, candle, and signal slabs
     private final MemorySegment candleBuffer;
     private final MemorySegment signalBuffer;
+    private final MemorySegment indicatorBuffer;
 
     // Pre-allocated price extraction buffers — reused every batch, zero allocation on hot path
     private final MemorySegment closeBuffer;
@@ -49,6 +50,7 @@ public class IngestionServiceImpl implements IngestionService {
 
         this.candleBuffer = arena.allocate(CandleMemory.LAYOUT, BATCH_SIZE);
         this.signalBuffer = arena.allocate(SignalMemory.LAYOUT, BATCH_SIZE);
+        this.indicatorBuffer = arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE);
 
         // One double per candle, pre-allocated once
         this.closeBuffer = arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE);
@@ -62,13 +64,15 @@ public class IngestionServiceImpl implements IngestionService {
     public void processCSV(final String path, final Strategy strategy) {
         log.info("Processing CSV: {} with strategy: {}", path, strategy.name());
 
+        // Resolve once — not per batch
         final MethodHandle handle = resolveHandle(strategy.openCondition());
-        final Signal signal = new Signal(); // flyweight, allocated once
+        final int window = resolveWindow(strategy.openCondition());
+        final Signal signal = new Signal();
 
         try (final var lines = Files.lines(Path.of(path))) {
             lines.skip(1)
                     .gather(Gatherers.windowFixed(BATCH_SIZE))
-                    .forEach(batch -> processBatch(batch, handle, signal, strategy));
+                    .forEach(batch -> processBatch(batch, handle, window, signal, strategy));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read CSV: " + path, e);
         }
@@ -77,41 +81,49 @@ public class IngestionServiceImpl implements IngestionService {
     private void processBatch(
             final List<String> batch,
             final MethodHandle handle,
+            final int window,
             final Signal signal,
             final Strategy strategy) {
 
         final int size = batch.size();
 
-        // Write raw candle data into pre-allocated slab
         for (int i = 0; i < size; i++) {
             writeLineToMemory(batch.get(i), candleBuffer, i);
         }
 
-        // Extract close prices into contiguous double buffer for Rust
         ArenaOps.extractPrices(candleBuffer, closeBuffer, CandleMemory.CLOSE, size);
 
-        // Resolve window from strategy condition
-        final int window = resolveWindow(strategy.openCondition());
+        // Rust writes SMA values into indicatorBuffer — plain f64 array
+        nativeBridge.execute(handle, closeBuffer, indicatorBuffer, size, window);
 
-        // Call Rust — zero allocation, invokeExact
-        nativeBridge.execute(handle, closeBuffer, signalBuffer, size, window);
-
-        // Evaluate signals against strategy conditions
+        // Java reads price from candle slab, indicator from indicatorBuffer
+        // and populates signalBuffer for condition evaluation
         for (int i = 0; i < size; i++) {
-            signal.read(signalBuffer, i);
+            final long candleOffset = (long) i * CandleMemory.BYTE_SIZE;
+            final long signalOffset = (long) i * SignalMemory.BYTE_SIZE;
+            final long indicatorOffset = (long) i * ValueLayout.JAVA_DOUBLE.byteSize();
 
-            long candleOffset = (long) i * CandleMemory.BYTE_SIZE;
-            long signalOffset = (long) i * SignalMemory.BYTE_SIZE;
-            long timestamp = (long) CandleMemory.TIMESTAMP.get(candleBuffer, candleOffset);
+            final double price = (double) CandleMemory.CLOSE.get(candleBuffer, candleOffset);
+            final double indicator = indicatorBuffer.get(ValueLayout.JAVA_DOUBLE, indicatorOffset);
+            final long   timestamp = (long) CandleMemory.TIMESTAMP.get(candleBuffer, candleOffset);
+
+            // Write signal struct for condition evaluation
+            SignalMemory.PRICE.set(signalBuffer, signalOffset, price);
+            SignalMemory.INDICATOR.set(signalBuffer, signalOffset, indicator);
             SignalMemory.TIMESTAMP.set(signalBuffer, signalOffset, timestamp);
             SignalMemory.SYMBOL_ID.set(signalBuffer, signalOffset, strategy.symbol().hashCode());
 
+            // Skip warmup period — SMA not valid yet
+            if (Double.isNaN(indicator)) continue;
+
+            signal.read(signalBuffer, i);
+
             if (strategy.openCondition().evaluate(signal)) {
-                log.info("BUY  @ index {} | price: {} | indicator: {}",
-                        i, signal.price(), signal.indicatorValue());
+                log.info("BUY  @ {} | price: {} | sma({}): {}",
+                        LocalDate.ofEpochDay(timestamp), price, window, indicator);
             } else if (strategy.closeCondition().evaluate(signal)) {
-                log.info("SELL @ index {} | price: {} | indicator: {}",
-                        i, signal.price(), signal.indicatorValue());
+                log.info("SELL @ {} | price: {} | sma({}): {}",
+                        LocalDate.ofEpochDay(timestamp), price, window, indicator);
             }
         }
     }
@@ -141,6 +153,7 @@ public class IngestionServiceImpl implements IngestionService {
      */
     private MethodHandle resolveHandle(final StrategyCondition condition) {
         if (condition instanceof SimpleCondition simple) {
+            log.debug("Supported indicator found: {}", ((SimpleCondition) condition).indicator());
             return switch (simple.indicator().toUpperCase()) {
                 case "SMA" -> nativeBridge.getMomentumFunctions().sma;
                 case "EMA" -> nativeBridge.getMomentumFunctions().ema;
@@ -152,6 +165,7 @@ public class IngestionServiceImpl implements IngestionService {
         }
         // Composite — recurse into first child to find the lead indicator
         if (condition instanceof com.example.strategy.CompositeCondition composite) {
+            log.debug("Condition found as composite");
             return resolveHandle(composite.conditions().getFirst());
         }
         throw new IllegalArgumentException("Cannot resolve handle from condition: " + condition);

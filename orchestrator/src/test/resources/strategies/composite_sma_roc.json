@@ -10,14 +10,14 @@
         "indicator": "SMA",
         "period": 10,
         "condition": "CROSSES_ABOVE",
-        "target": { "value": 0.0 }
+        "target": { "value": 70.0 }
       },
       {
         "type": "simple",
         "indicator": "ROC",
         "period": 5,
         "condition": "CROSSES_ABOVE",
-        "target": { "value": 0.0 }
+        "target": { "value": 70.0 }
       }
     ]
   },
@@ -30,14 +30,14 @@
         "indicator": "SMA",
         "period": 10,
         "condition": "CROSSES_BELOW",
-        "target": { "value": 0.0 }
+        "target": { "value": 140.0 }
       },
       {
         "type": "simple",
         "indicator": "ROC",
         "period": 5,
         "condition": "CROSSES_BELOW",
-        "target": { "value": 0.0 }
+        "target": { "value": 140.0 }
       }
     ]
   },
