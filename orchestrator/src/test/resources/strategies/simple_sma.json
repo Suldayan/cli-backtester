@@ -6,14 +6,14 @@
     "indicator": "SMA",
     "period": 10,
     "condition": "CROSSES_ABOVE",
-    "target": { "value": 0.0 }
+    "target": { "value": 150.0 }
   },
   "close": {
     "type": "simple",
     "indicator": "SMA",
     "period": 10,
     "condition": "CROSSES_BELOW",
-    "target": { "value": 0.0 }
+    "target": { "value": 150.0 }
   },
   "risk": {
     "stop_loss_pct": 2.0,

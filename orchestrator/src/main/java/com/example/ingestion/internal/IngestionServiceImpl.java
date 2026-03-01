@@ -9,6 +9,7 @@ import com.example.strategy.Signal;
 import com.example.strategy.SimpleCondition;
 import com.example.strategy.Strategy;
 import com.example.strategy.StrategyCondition;
+import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -35,6 +36,8 @@ public class IngestionServiceImpl implements IngestionService {
 
     // Pre-allocated price extraction buffers — reused every batch, zero allocation on hot path
     private final MemorySegment closeBuffer;
+
+    // TODO: configure when more indicators are supported
     private final MemorySegment highBuffer;
     private final MemorySegment lowBuffer;
 
@@ -143,7 +146,7 @@ public class IngestionServiceImpl implements IngestionService {
                 case "EMA" -> nativeBridge.getMomentumFunctions().ema;
                 case "ROC" -> nativeBridge.getMomentumFunctions().roc;
                 default -> throw new IllegalArgumentException(
-                        "Unsupported indicator: " + simple.indicator()
+                        String.format("Unsupported indicator: {}" + simple.indicator())
                 );
             };
         }
@@ -165,5 +168,10 @@ public class IngestionServiceImpl implements IngestionService {
             return resolveWindow(composite.conditions().getFirst());
         }
         throw new IllegalArgumentException("Cannot resolve window from condition: " + condition);
+    }
+
+    @PreDestroy
+    public void close() {
+        arena.close();
     }
 }
