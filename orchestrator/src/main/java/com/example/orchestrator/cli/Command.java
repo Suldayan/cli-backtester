@@ -1,5 +1,8 @@
 package com.example.orchestrator.cli;
 
+import com.example.ingestion.IngestionService;
+import com.example.strategy.Strategy;
+import com.example.strategy.StrategyParser;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -7,22 +10,33 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class Command implements CommandLineRunner {
-    private static final short MAX_NUM_ARGS = 2;
+    private final IngestionService ingestionService;
+    private final StrategyParser strategyParser;
+
+    private static final short EXPECTED_ARGS = 2;
+
+    public Command(final IngestionService ingestionService, final StrategyParser strategyParser) {
+        this.ingestionService = ingestionService;
+        this.strategyParser = strategyParser;
+    }
 
     @Override
-    public void run(String... args) {
-        try {
-            if (args.length != MAX_NUM_ARGS) {
-                throw new IllegalArgumentException("Invalid number of arguments.\nUsage: <path to ohlcv.csv> <path to strategy config>");
-            }
-
-            final String OHLCV_PATH = args[0];
-            final String CONFIG_PATH = args[1];
-
-            log.info("Running backtest...");
-            log.info("OHLCV Path: {} \n Strategy Config Path: {}", OHLCV_PATH, CONFIG_PATH);
-        } catch (Exception e) {
-            log.error("Backtest failed: {}", e.getMessage());
+    public void run(final String... args) {
+        if (args.length != EXPECTED_ARGS) {
+            log.error("Invalid arguments.\nUsage: <path to ohlcv.csv> <path to strategy.json>");
+            return;
         }
+
+        final String ohlcvPath = args[0];
+        final String strategyPath = args[1];
+
+        log.info("Loading strategy from: {}", strategyPath);
+        final Strategy strategy = strategyParser.parse(strategyPath);
+        log.info("Strategy loaded: {}", strategy.name());
+
+        log.info("Running backtest on: {}", ohlcvPath);
+        ingestionService.processCSV(ohlcvPath, strategy);
+
+        log.info("Backtest complete.");
     }
 }

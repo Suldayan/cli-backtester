@@ -1,0 +1,23 @@
+{
+  "name": "Simple SMA Strategy",
+  "symbol": "AAPL",
+  "open": {
+    "type": "simple",
+    "indicator": "SMA",
+    "period": 10,
+    "condition": "CROSSES_ABOVE",
+    "target": { "value": 0.0 }
+  },
+  "close": {
+    "type": "simple",
+    "indicator": "SMA",
+    "period": 10,
+    "condition": "CROSSES_BELOW",
+    "target": { "value": 0.0 }
+  },
+  "risk": {
+    "stop_loss_pct": 2.0,
+    "take_profit_pct": 5.0,
+    "position_size_pct": 10.0
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "Composite SMA + ROC Strategy",
+  "symbol": "AAPL",
+  "open": {
+    "type": "composite",
+    "operator": "AND",
+    "conditions": [
+      {
+        "type": "simple",
+        "indicator": "SMA",
+        "period": 10,
+        "condition": "CROSSES_ABOVE",
+        "target": { "value": 0.0 }
+      },
+      {
+        "type": "simple",
+        "indicator": "ROC",
+        "period": 5,
+        "condition": "CROSSES_ABOVE",
+        "target": { "value": 0.0 }
+      }
+    ]
+  },
+  "close": {
+    "type": "composite",
+    "operator": "OR",
+    "conditions": [
+      {
+        "type": "simple",
+        "indicator": "SMA",
+        "period": 10,
+        "condition": "CROSSES_BELOW",
+        "target": { "value": 0.0 }
+      },
+      {
+        "type": "simple",
+        "indicator": "ROC",
+        "period": 5,
+        "condition": "CROSSES_BELOW",
+        "target": { "value": 0.0 }
+      }
+    ]
+  },
+  "risk": {
+    "stop_loss_pct": 3.0,
+    "take_profit_pct": 8.0,
+    "position_size_pct": 15.0
+  }
+}

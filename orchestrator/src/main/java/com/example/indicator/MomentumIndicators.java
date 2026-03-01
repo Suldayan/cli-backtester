@@ -1,2 +1,4 @@
-package com.example.indicator;public class MomentumIndicators {
+package com.example.indicator;
+
+public class MomentumIndicators {
 }

@@ -33,13 +33,13 @@ public final class NativeBridge implements AutoCloseable {
 
     public void execute(
             final MethodHandle handle,
-            final MemorySegment state,
-            final MemorySegment candles,
-            final MemorySegment signals,
-            final long count) {
-        validateSegments(state, candles, signals);
+            final MemorySegment prices,
+            final MemorySegment out,
+            final long len,
+            final long window) {
+        validateSegments(prices, out);
         try {
-            handle.invokeExact(state, candles, signals, count);
+            handle.invokeExact(prices, len, window, out);
         } catch (Throwable t) {
             throw new RuntimeException("CRITICAL: Native engine failure", t);
         }
