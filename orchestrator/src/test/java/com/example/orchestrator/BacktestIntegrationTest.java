@@ -7,7 +7,6 @@ import com.example.ingestion.IngestionService;
 import com.example.strategy.Strategy;
 import com.example.strategy.StrategyParser;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -136,7 +135,7 @@ class BacktestIntegrationTest {
                 .filter(msg -> msg.contains("BUY") || msg.contains("SELL"))
                 .forEach(msg -> {
                     assertThat(msg).contains("price:");
-                    assertThat(msg).contains("sma(");
+                    assertThat(msg).contains("SMA(");
                 });
     }
 

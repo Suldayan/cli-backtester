@@ -4,11 +4,9 @@ import com.example.arena.ArenaOps;
 import com.example.ffi.bridge.NativeBridge;
 import com.example.ffi.layout.CandleMemory;
 import com.example.ffi.layout.SignalMemory;
+import com.example.indicator.Indicator;
 import com.example.ingestion.IngestionService;
-import com.example.strategy.Signal;
-import com.example.strategy.SimpleCondition;
-import com.example.strategy.Strategy;
-import com.example.strategy.StrategyCondition;
+import com.example.strategy.*;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,7 +19,9 @@ import java.lang.invoke.MethodHandle;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Gatherers;
 
 @Slf4j
@@ -29,6 +29,7 @@ import java.util.stream.Gatherers;
 public class IngestionServiceImpl implements IngestionService {
     private final NativeBridge nativeBridge;
     private final Arena arena;
+    private final Map<String, MemorySegment> indicatorBuffers;
 
     // Pre-allocated indicator, candle, and signal slabs
     private final MemorySegment candleBuffer;
@@ -57,6 +58,12 @@ public class IngestionServiceImpl implements IngestionService {
         this.highBuffer  = arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE);
         this.lowBuffer   = arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE);
 
+        this.indicatorBuffers = Map.of(
+                "SMA", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE),
+                "EMA", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE),
+                "ROC", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE)
+        );
+
         log.info("IngestionService buffers pre-allocated for batch size: {}", BATCH_SIZE);
     }
 
@@ -64,15 +71,16 @@ public class IngestionServiceImpl implements IngestionService {
     public void processCSV(final String path, final Strategy strategy) {
         log.info("Processing CSV: {} with strategy: {}", path, strategy.name());
 
-        // Resolve once — not per batch
-        final MethodHandle handle = resolveHandle(strategy.openCondition());
-        final int window = resolveWindow(strategy.openCondition());
+        final List<Indicator> indicators = resolveAll(strategy.openCondition());
+        final MemorySegment[] buffers    = indicators.stream()
+                .map(i -> indicatorBuffers.get(i.name()))
+                .toArray(MemorySegment[]::new);
         final Signal signal = new Signal();
 
         try (final var lines = Files.lines(Path.of(path))) {
             lines.skip(1)
                     .gather(Gatherers.windowFixed(BATCH_SIZE))
-                    .forEach(batch -> processBatch(batch, handle, window, signal, strategy));
+                    .forEach(batch -> processBatch(batch, indicators, buffers, signal, strategy));
         } catch (IOException e) {
             throw new RuntimeException("Failed to read CSV: " + path, e);
         }
@@ -80,8 +88,8 @@ public class IngestionServiceImpl implements IngestionService {
 
     private void processBatch(
             final List<String> batch,
-            final MethodHandle handle,
-            final int window,
+            final List<Indicator> indicators,
+            final MemorySegment[] buffers,
             final Signal signal,
             final Strategy strategy) {
 
@@ -93,39 +101,63 @@ public class IngestionServiceImpl implements IngestionService {
 
         ArenaOps.extractPrices(candleBuffer, closeBuffer, CandleMemory.CLOSE, size);
 
-        // Rust writes SMA values into indicatorBuffer — plain f64 array
-        nativeBridge.execute(handle, closeBuffer, indicatorBuffer, size, window);
+        // Run each indicator sequentially into its own pre-allocated buffer
+        for (final Indicator indicator : indicators) {
+            nativeBridge.execute(
+                    indicator.handle(),
+                    closeBuffer,
+                    buffers[indicator.index()],
+                    (long) size,
+                    (long) indicator.window()
+            );
+        }
 
-        // Java reads price from candle slab, indicator from indicatorBuffer
-        // and populates signalBuffer for condition evaluation
         for (int i = 0; i < size; i++) {
-            final long candleOffset = (long) i * CandleMemory.BYTE_SIZE;
-            final long signalOffset = (long) i * SignalMemory.BYTE_SIZE;
-            final long indicatorOffset = (long) i * ValueLayout.JAVA_DOUBLE.byteSize();
+            final long candleOffset    = (long) i * CandleMemory.BYTE_SIZE;
+            final long signalOffset    = (long) i * SignalMemory.BYTE_SIZE;
+            final long indicatorOffset = (long) i * Double.BYTES;
 
-            final double price = (double) CandleMemory.CLOSE.get(candleBuffer, candleOffset);
-            final double indicator = indicatorBuffer.get(ValueLayout.JAVA_DOUBLE, indicatorOffset);
-            final long   timestamp = (long) CandleMemory.TIMESTAMP.get(candleBuffer, candleOffset);
+            final double price     = (double) CandleMemory.CLOSE.get(candleBuffer, candleOffset);
+            final long   timestamp = (long)   CandleMemory.TIMESTAMP.get(candleBuffer, candleOffset);
 
-            // Write signal struct for condition evaluation
-            SignalMemory.PRICE.set(signalBuffer, signalOffset, price);
-            SignalMemory.INDICATOR.set(signalBuffer, signalOffset, indicator);
-            SignalMemory.TIMESTAMP.set(signalBuffer, signalOffset, timestamp);
-            SignalMemory.SYMBOL_ID.set(signalBuffer, signalOffset, strategy.symbol().hashCode());
-
-            // Skip warmup period — SMA not valid yet
-            if (Double.isNaN(indicator)) continue;
+            // Populate indicator slots on signal
+            for (int j = 0; j < indicators.size(); j++) {
+                signal.setIndicator(j, buffers[j].get(ValueLayout.JAVA_DOUBLE, indicatorOffset));
+            }
 
             signal.read(signalBuffer, i);
 
+            // Skip warmup — primary indicator not valid yet
+            if (Double.isNaN(signal.indicator(0))) continue;
+
+            // Write populated signal back to buffer
+            SignalMemory.PRICE.set(signalBuffer, signalOffset, price);
+            SignalMemory.TIMESTAMP.set(signalBuffer, signalOffset, timestamp);
+            SignalMemory.SYMBOL_ID.set(signalBuffer, signalOffset, strategy.symbol().hashCode());
+
             if (strategy.openCondition().evaluate(signal)) {
-                log.info("BUY  @ {} | price: {} | sma({}): {}",
-                        LocalDate.ofEpochDay(timestamp), price, window, indicator);
+                SignalMemory.ACTION.set(signalBuffer, signalOffset, 1);
+                log.info("BUY  @ {} | price: {} | indicators: {}",
+                        LocalDate.ofEpochDay(timestamp), price, formatIndicators(indicators, signal));
             } else if (strategy.closeCondition().evaluate(signal)) {
-                log.info("SELL @ {} | price: {} | sma({}): {}",
-                        LocalDate.ofEpochDay(timestamp), price, window, indicator);
+                SignalMemory.ACTION.set(signalBuffer, signalOffset, -1);
+                log.info("SELL @ {} | price: {} | indicators: {}",
+                        LocalDate.ofEpochDay(timestamp), price, formatIndicators(indicators, signal));
+            } else {
+                SignalMemory.ACTION.set(signalBuffer, signalOffset, 0);
             }
         }
+    }
+
+    private String formatIndicators(final List<Indicator> indicators, final Signal signal) {
+        final StringBuilder sb = new StringBuilder();
+        for (final Indicator ind : indicators) {
+            if (!sb.isEmpty()) sb.append(", ");
+            sb.append(ind.name())
+                    .append("(").append(ind.window()).append(")")
+                    .append(": ").append(signal.indicator(ind.index()));
+        }
+        return sb.toString();
     }
 
     private void writeLineToMemory(
@@ -145,43 +177,35 @@ public class IngestionServiceImpl implements IngestionService {
         CandleMemory.VOLUME.set(buffer, offset,    Double.parseDouble(parts[5]));
     }
 
-    /**
-     * Walks the condition tree to find the first SimpleCondition
-     * and maps its indicator name to the corresponding MethodHandle.
-     * MACD and Stochastic require multiple output buffers and are not
-     * supported in this execution path — handle separately when needed.
-     */
-    private MethodHandle resolveHandle(final StrategyCondition condition) {
-        if (condition instanceof SimpleCondition simple) {
-            log.debug("Supported indicator found: {}", ((SimpleCondition) condition).indicator());
-            return switch (simple.indicator().toUpperCase()) {
-                case "SMA" -> nativeBridge.getMomentumFunctions().sma;
-                case "EMA" -> nativeBridge.getMomentumFunctions().ema;
-                case "ROC" -> nativeBridge.getMomentumFunctions().roc;
-                default -> throw new IllegalArgumentException(
-                        String.format("Unsupported indicator: {}" + simple.indicator())
-                );
-            };
-        }
-        // Composite — recurse into first child to find the lead indicator
-        if (condition instanceof com.example.strategy.CompositeCondition composite) {
-            log.debug("Condition found as composite");
-            return resolveHandle(composite.conditions().getFirst());
-        }
-        throw new IllegalArgumentException("Cannot resolve handle from condition: " + condition);
+    private MethodHandle resolveHandle(final String indicator) {
+        return switch (indicator.toUpperCase()) {
+            case "SMA" -> nativeBridge.getMomentumFunctions().sma;
+            case "EMA" -> nativeBridge.getMomentumFunctions().ema;
+            case "ROC" -> nativeBridge.getMomentumFunctions().roc;
+            default -> throw new IllegalArgumentException("Unsupported indicator: " + indicator);
+        };
     }
 
-    /**
-     * Extracts the period/window from the first SimpleCondition in the tree.
-     */
-    private int resolveWindow(final StrategyCondition condition) {
+    private List<Indicator> resolveAll(final StrategyCondition condition) {
+        final List<Indicator> result = new ArrayList<>();
+        resolveAllRecursive(condition, result);
+        return result;
+    }
+
+    private void resolveAllRecursive(final StrategyCondition condition, final List<Indicator> result) {
         if (condition instanceof SimpleCondition simple) {
-            return simple.period();
+            final int index = result.size();
+            result.add(new Indicator(
+                    index,
+                    simple.indicator(),
+                    simple.period(),
+                    resolveHandle(simple.indicator())
+            ));
+        } else if (condition instanceof CompositeCondition composite) {
+            for (StrategyCondition child : composite.conditions()) {
+                resolveAllRecursive(child, result);
+            }
         }
-        if (condition instanceof com.example.strategy.CompositeCondition composite) {
-            return resolveWindow(composite.conditions().getFirst());
-        }
-        throw new IllegalArgumentException("Cannot resolve window from condition: " + condition);
     }
 
     @PreDestroy

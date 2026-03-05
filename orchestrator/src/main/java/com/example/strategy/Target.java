@@ -8,8 +8,9 @@ import java.util.Objects;
  * or a reference to another indicator's computed value (e.g. SMA 20 crosses above SMA 50).
  * Only one of {@code value} or {@code indicator} will be populated.
  */
-public record Target(Double value, String indicator, Integer period) {
+public record Target(Double value, String indicator, Integer period, int index) {
     public double resolveValue(final Signal signal) {
-        return Objects.requireNonNullElseGet(value, signal::indicatorValue);
+        if (value != null) return value;
+        return signal.indicator(index);
     }
 }

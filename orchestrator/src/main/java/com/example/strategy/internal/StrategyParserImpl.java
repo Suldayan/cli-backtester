@@ -14,6 +14,8 @@ import java.util.List;
 public final class StrategyParserImpl implements StrategyParser {
     private final ObjectMapper mapper;
 
+    private static final int STARTING_INDEX = 0;
+
     public StrategyParserImpl(ObjectMapper mapper) {
         this.mapper = mapper;
     }
@@ -34,6 +36,7 @@ public final class StrategyParserImpl implements StrategyParser {
         final String type = node.get("type").asString();
         if (type.equals("simple")) {
             return new SimpleCondition(
+                    STARTING_INDEX,
                     node.get("indicator").asString(),
                     node.get("period").asInt(),
                     ConditionType.valueOf(node.get("condition").asString()),
@@ -50,8 +53,8 @@ public final class StrategyParserImpl implements StrategyParser {
 
     private Target parseTarget(final @NonNull JsonNode node) {
         if (node.has("value"))
-            return new Target(node.get("value").asDouble(), null, null);
-        return new Target(null, node.get("indicator").asString(), node.get("period").asInt());
+            return new Target(node.get("value").asDouble(), null, null, STARTING_INDEX);
+        return new Target(null, node.get("indicator").asString(), node.get("period").asInt(), STARTING_INDEX);
     }
 
     private RiskParameters parseRisk(final @NonNull JsonNode node) {

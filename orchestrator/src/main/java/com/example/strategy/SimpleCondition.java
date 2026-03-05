@@ -1,8 +1,7 @@
 package com.example.strategy;
 
-import lombok.NonNull;
-
 public record SimpleCondition(
+        int index,
         String indicator,
         int period,
         ConditionType condition,
@@ -10,10 +9,11 @@ public record SimpleCondition(
 ) implements StrategyCondition {
 
     @Override
-    public boolean evaluate(final @NonNull Signal signal) {
+    public boolean evaluate(Signal signal) {
+        final double value = signal.indicator(index);
         return switch (condition) {
-            case CROSSES_ABOVE -> signal.indicatorValue() > target.resolveValue(signal);
-            case CROSSES_BELOW -> signal.indicatorValue() < target.resolveValue(signal);
+            case CROSSES_ABOVE -> value > target.resolveValue(signal);
+            case CROSSES_BELOW -> value < target.resolveValue(signal);
         };
     }
 }
