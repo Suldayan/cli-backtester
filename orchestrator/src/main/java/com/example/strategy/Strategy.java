@@ -7,4 +7,7 @@ public record Strategy(
         StrategyCondition closeCondition,
         RiskParameters risk
 ) {
+    public int symbolId() {
+        return symbol.hashCode();
+    }
 }
