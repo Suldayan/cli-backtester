@@ -45,5 +45,11 @@
     "stop_loss_pct": 3.0,
     "take_profit_pct": 8.0,
     "position_size_pct": 15.0
+  },
+  "execution": {
+    "initial_capital": 10000.0,
+    "slippage_pct": 0.1,
+    "fee_pct": 0.05,
+    "risk_free_rate": 0.0
   }
 }
