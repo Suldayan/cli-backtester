@@ -28,7 +28,17 @@ public final class StrategyParserImpl implements StrategyParser {
                 root.get("symbol").asString(),
                 parseCondition(root.get("open")),
                 parseCondition(root.get("close")),
-                parseRisk(root.get("risk"))
+                parseRisk(root.get("risk")),
+                parseExecution(root.get("execution"))
+        );
+    }
+
+    private ExecutionParameters parseExecution(final JsonNode node) {
+        return new ExecutionParameters(
+                node.get("initial_capital").asDouble(),
+                node.get("slippage_pct").asDouble(),
+                node.get("fee_pct").asDouble(),
+                node.get("risk_free_rate").asDouble()
         );
     }
 
