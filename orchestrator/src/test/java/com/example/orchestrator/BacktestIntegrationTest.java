@@ -1,25 +1,22 @@
 package com.example.orchestrator;
 
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
+import com.example.backtest.Backtester;
+import com.example.ffi.layout.CandleMemory;
 import com.example.ingestion.IngestionService;
+import com.example.result.BacktestPrinter;
+import com.example.result.BacktestResult;
+import com.example.result.metrics.TradeMetrics;
 import com.example.strategy.Strategy;
 import com.example.strategy.StrategyParser;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
-import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
+import static org.assertj.core.api.Assertions.*;
 
 /**
  * Full vertical slice integration test.
@@ -35,133 +32,227 @@ class BacktestIntegrationTest {
     @Autowired
     private StrategyParser strategyParser;
 
-    private ListAppender<ILoggingEvent> logAppender;
-    private Logger ingestionLogger;
+    @Autowired
+    private Backtester backtester;
 
-    @BeforeEach
-    void attachLogAppender() {
-        // Capture log output from IngestionServiceImpl so we can assert on signals
-        ingestionLogger = (Logger) LoggerFactory.getLogger(
-                "com.example.ingestion.internal.IngestionServiceImpl"
-        );
-        logAppender = new ListAppender<>();
-        logAppender.start();
-        ingestionLogger.addAppender(logAppender);
-    }
-
-    @AfterEach
-    void detachLogAppender() {
-        ingestionLogger.detachAppender(logAppender);
-    }
+    @Autowired
+    private BacktestPrinter backtestPrinter;
 
     // --- Strategy parsing tests ---
 
     @Test
     void simpleSmaStrategy_parsesWithoutError() {
-        final String path = resourcePath("strategies/simple_sma.json");
-        assertThatNoException().isThrownBy(() -> strategyParser.parse(path));
+        assertThatNoException().isThrownBy(() ->
+                strategyParser.parse(resourcePath("strategies/simple_sma.json")));
     }
 
     @Test
-    void compositeSmaRocStrategy_parsesWithoutError() {
-        final String path = resourcePath("strategies/composite_sma_roc.json");
-        assertThatNoException().isThrownBy(() -> strategyParser.parse(path));
+    void compositeStrategy_parsesWithoutError() {
+        assertThatNoException().isThrownBy(() ->
+                strategyParser.parse(resourcePath("strategies/composite_sma_roc.json")));
     }
 
     @Test
     void simpleSmaStrategy_hasCorrectName() {
-        final Strategy strategy = strategyParser.parse(
-                resourcePath("strategies/simple_sma.json")
-        );
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
         assertThat(strategy.name()).isEqualTo("Simple SMA Strategy");
     }
 
     @Test
     void compositeStrategy_hasCorrectName() {
-        final Strategy strategy = strategyParser.parse(
-                resourcePath("strategies/composite_sma_roc.json")
-        );
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/composite_sma_roc.json"));
         assertThat(strategy.name()).isEqualTo("Composite SMA + ROC Strategy");
+    }
+
+    @Test
+    void simpleSmaStrategy_hasExecutionParameters() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
+        assertThat(strategy.execution().initialCapital()).isEqualTo(10000.0);
+        assertThat(strategy.execution().slippagePct()).isEqualTo(0.1);
+        assertThat(strategy.execution().feePct()).isEqualTo(0.05);
+    }
+
+    @Test
+    void invalidStrategyJson_throwsMeaningfulError() {
+        assertThatThrownBy(() ->
+                strategyParser.parse(resourcePath("strategies/invalid.json")))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to parse strategy");
+    }
+
+    // --- Ingestion tests ---
+
+    @Test
+    void processCSV_returnsCorrectBarCount() {
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+        assertThat(bars).isGreaterThan(0);
+    }
+
+    @Test
+    void processCSV_populatesCandleBuffer() {
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+        assertThat(bars).isGreaterThan(0);
+        // Verify candle buffer has data — first close price should be non-zero
+        final double firstClose = (double) CandleMemory.CLOSE.get(
+                ingestionService.candleBuffer(), 0L);
+        assertThat(firstClose).isGreaterThan(0.0);
     }
 
     // --- Full pipeline tests ---
 
     @Test
-    void simpleStrategy_processesCsvWithoutError() {
-        final String csvPath      = resourcePath("data/AAPL.csv");
-        final String strategyPath = resourcePath("strategies/simple_sma.json");
-        final Strategy strategy = strategyParser.parse(strategyPath);
+    void simpleStrategy_completesWithoutError() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
 
         assertThatNoException().isThrownBy(() ->
-                ingestionService.processCSV(csvPath, strategy)
+                backtester.run(
+                        ingestionService.candleBuffer(),
+                        ingestionService.closeBuffer(),
+                        ingestionService.indicatorBuffers(),
+                        bars,
+                        strategy
+                ));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
         );
+
+        backtestPrinter.print(result);
     }
 
     @Test
-    void compositeStrategy_processesCsvWithoutError() {
-        final String csvPath      = resourcePath("data/AAPL.csv");
-        final String strategyPath = resourcePath("strategies/composite_sma_roc.json");
-        final Strategy strategy = strategyParser.parse(strategyPath);
+    void compositeStrategy_completesWithoutError() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/composite_sma_roc.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
 
         assertThatNoException().isThrownBy(() ->
-                ingestionService.processCSV(csvPath, strategy)
+                backtester.run(
+                        ingestionService.candleBuffer(),
+                        ingestionService.closeBuffer(),
+                        ingestionService.indicatorBuffers(),
+                        bars,
+                        strategy
+                ));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
         );
+
+        backtestPrinter.print(result);
     }
 
     @Test
-    void simpleStrategy_producesSomeSignals() {
-        final String csvPath      = resourcePath("data/AAPL.csv");
-        final Strategy strategy = strategyParser.parse(
-                resourcePath("strategies/simple_sma.json")
+    void simpleStrategy_producesSomeTrades() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
         );
 
-        ingestionService.processCSV(csvPath, strategy);
-
-        final List<String> signals = logMessages();
-        assertThat(signals)
-                .as("Expected at least one BUY or SELL signal to be logged")
-                .anyMatch(msg -> msg.contains("BUY") || msg.contains("SELL"));
+        assertThat(result.trades().totalTrades())
+                .as("Expected at least one round-trip trade")
+                .isGreaterThan(0);
     }
 
     @Test
-    void simpleStrategy_signalsContainPriceAndIndicator() {
-        final Strategy strategy = strategyParser.parse(
-                resourcePath("strategies/simple_sma.json")
+    void simpleStrategy_metaIsPopulated() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
         );
 
-        ingestionService.processCSV(resourcePath("data/AAPL.csv"), strategy);
-
-        logMessages().stream()
-                .filter(msg -> msg.contains("BUY") || msg.contains("SELL"))
-                .forEach(msg -> {
-                    assertThat(msg).contains("price:");
-                    assertThat(msg).contains("SMA(");
-                });
+        assertThat(result.metadata().symbol()).isEqualTo("AAPL");
+        assertThat(result.metadata().barsProcessed()).isEqualTo(bars);
+        assertThat(result.metadata().periodStart()).isNotNull();
+        assertThat(result.metadata().periodEnd()).isNotNull();
+        assertThat(result.metadata().computeTimeMs()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
-    void invalidStrategyJson_throwsMeaningfulError() {
-        assertThatNoException()
-                .isThrownBy(() -> strategyParser.parse(resourcePath("strategies/simple_sma.json")));
+    void simpleStrategy_tradeMetricsAreConsistent() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
+        );
+
+        final TradeMetrics trades = result.trades();
+        assertThat(trades.wins() + trades.losses()).isEqualTo(trades.totalTrades());
+        assertThat(trades.winRatePct()).isBetween(0.0, 100.0);
+        assertThat(trades.profitFactor()).isGreaterThanOrEqualTo(0.0);
+    }
+
+    @Test
+    void simpleStrategy_riskMetricsAreValid() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
+        );
+
+        assertThat(result.risk().maxDrawdownPct()).isGreaterThanOrEqualTo(0.0);
+        assertThat(result.risk().volatility()).isGreaterThanOrEqualTo(0.0);
+    }
+
+    @Test
+    void simpleStrategy_equityCurveIsPopulated() {
+        final Strategy strategy = strategyParser.parse(resourcePath("strategies/simple_sma.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
+        );
+
+        assertThat(result.performance().equityCurve())
+                .as("Equity curve should have entries")
+                .isNotEmpty();
+        assertThat(result.performance().equityCurve().getFirst().equity())
+                .isEqualTo(strategy.execution().initialCapital());
     }
 
     // --- Helpers ---
 
     private String resourcePath(final String relativePath) {
         final URL resource = getClass().getClassLoader().getResource(relativePath);
-        assertThat(resource)
-                .as("Test resource not found: " + relativePath)
-                .isNotNull();
+        assertThat(resource).as("Test resource not found: " + relativePath).isNotNull();
         try {
             return Path.of(resource.toURI()).toString();
         } catch (URISyntaxException e) {
             throw new RuntimeException("Invalid resource path: " + relativePath, e);
         }
-    }
-
-    private List<String> logMessages() {
-        return logAppender.list.stream()
-                .map(ILoggingEvent::getFormattedMessage)
-                .toList();
     }
 }

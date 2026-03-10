@@ -21,16 +21,20 @@ public final class StrategyParserImpl implements StrategyParser {
     }
 
     @Override
-    public Strategy parse(final @NonNull String path) {
-        final JsonNode root = mapper.readTree(Path.of(path).toFile());
-        return new Strategy(
-                root.get("name").asString(),
-                root.get("symbol").asString(),
-                parseCondition(root.get("open")),
-                parseCondition(root.get("close")),
-                parseRisk(root.get("risk")),
-                parseExecution(root.get("execution"))
-        );
+    public Strategy parse(final String path) {
+        try {
+            JsonNode root = mapper.readTree(Path.of(path).toFile());
+            return new Strategy(
+                    root.get("name").asString(),
+                    root.get("symbol").asString(),
+                    parseCondition(root.get("open")),
+                    parseCondition(root.get("close")),
+                    parseRisk(root.get("risk")),
+                    parseExecution(root.get("execution"))
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse strategy: " + path, e);
+        }
     }
 
     private ExecutionParameters parseExecution(final JsonNode node) {

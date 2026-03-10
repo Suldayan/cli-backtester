@@ -6,7 +6,7 @@ public record Strategy(
         StrategyCondition openCondition,
         StrategyCondition closeCondition,
         RiskParameters risk,
-        ExecutionParameters executionParameters
+        ExecutionParameters execution
 ) {
     public int symbolId() {
         return symbol.hashCode();
