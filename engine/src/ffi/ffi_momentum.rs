@@ -1,5 +1,5 @@
 use crate::indicators::moving_average::{calc_sma, calc_ema};
-use crate::indicators::momentum::{calc_roc, calc_macd, calc_stochastic};
+use crate::indicators::momentum::{calc_roc, calc_macd, calc_stochastic, calc_rsi};
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn compute_sma(
