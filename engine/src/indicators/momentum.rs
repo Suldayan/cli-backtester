@@ -114,6 +114,58 @@ pub fn calc_stochastic(
     calc_sma_skip_nan(out_k, d_smoothing, out_d);
 }
 
+pub fn calc_rsi(prices: &[f64], period: usize, out: &mut [f64]) {
+    let n = prices.len();
+    debug_assert_eq!(n, out.len());
+    debug_assert!(period > 0);
+
+    if n <= period {
+        out.fill(f64::NAN);
+        return;
+    }
+
+    // Warmup — not enough data yet
+    out[..period].fill(f64::NAN);
+
+    // Seed — simple average of first period gains and losses
+    let mut avg_gain = 0.0_f64;
+    let mut avg_loss = 0.0_f64;
+
+    for i in 1..=period {
+        let change = prices[i] - prices[i - 1];
+        if change > 0.0 {
+            avg_gain += change;
+        } else {
+            avg_loss += change.abs();
+        }
+    }
+
+    avg_gain /= period as f64;
+    avg_loss /= period as f64;
+
+    out[period] = if avg_loss == 0.0 {
+        100.0
+    } else {
+        100.0 - (100.0 / (1.0 + avg_gain / avg_loss))
+    };
+
+    // Wilder's smoothing for remaining values
+    for i in (period + 1)..n {
+        let change = prices[i] - prices[i - 1];
+        let gain   = if change > 0.0 { change } else { 0.0 };
+        let loss   = if change < 0.0 { change.abs() } else { 0.0 };
+
+        avg_gain = (avg_gain * (period as f64 - 1.0) + gain) / period as f64;
+        avg_loss = (avg_loss * (period as f64 - 1.0) + loss) / period as f64;
+
+        out[i] = if avg_loss == 0.0 {
+            100.0
+        } else {
+            100.0 - (100.0 / (1.0 + avg_gain / avg_loss))
+        };
+    }
+}
+
 #[inline(always)]
 fn calc_sma_skip_nan(prices: &[f64], window: usize, out: &mut [f64]) {
     debug_assert_eq!(out.len(), prices.len());
