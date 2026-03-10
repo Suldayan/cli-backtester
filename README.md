@@ -60,7 +60,7 @@ Built to explore three things in depth:
 CLI args (csv path + strategy.json)
         │
         ▼
-  TradingCommands       parse strategy.json → composite condition tree
+  Commands              parse strategy.json → composite condition tree
         │
         ▼
   IngestionService      read CSV → write candles to native MemorySegment slab
