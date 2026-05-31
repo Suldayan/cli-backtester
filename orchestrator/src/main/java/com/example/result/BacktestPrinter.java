@@ -5,8 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import java.text.DecimalFormat;
-
 @Slf4j
 @Component
 public class BacktestPrinter {
@@ -17,38 +15,32 @@ public class BacktestPrinter {
     }
 
     // ---------- NUMBER FORMATTING ----------
-    private static final DecimalFormat TWO_DEC = new DecimalFormat("#0.00");
-
-    private static String pct(double v) {
-        return TWO_DEC.format(v);
-    }
-
-    private static String num(double v) {
-        return TWO_DEC.format(v);
+    private static String fmt(final double v) {
+        return String.format("%.2f", v);
     }
 
     // ---------- DYNAMIC COLOR HELPERS ----------
-    private static String colorReturn(double v) {
-        if (v > 0) return Ansi.GREEN.wrap(pct(v));
-        if (v < 0) return Ansi.RED.wrap(pct(v));
-        return pct(v);
+    private static String colorReturn(final double v) {
+        if (v > 0) return Ansi.GREEN.wrap(fmt(v));
+        if (v < 0) return Ansi.RED.wrap(fmt(v));
+        return fmt(v);
     }
 
-    private static String colorDrawdown(double v) {
-        if (v > 20) return Ansi.RED.wrap(pct(v));
-        if (v > 10) return Ansi.YELLOW.wrap(pct(v));
-        return pct(v);
+    private static String colorDrawdown(final double v) {
+        if (v > 20) return Ansi.RED.wrap(fmt(v));
+        if (v > 10) return Ansi.YELLOW.wrap(fmt(v));
+        return fmt(v);
     }
 
-    private static String colorSharpe(double v) {
-        if (v > 1.0) return Ansi.GREEN.wrap(pct(v));
-        if (v >= 0) return Ansi.YELLOW.wrap(pct(v));
-        return Ansi.RED.wrap(pct(v));
+    private static String colorSharpe(final double v) {
+        if (v > 1.0) return Ansi.GREEN.wrap(fmt(v));
+        if (v >= 0) return Ansi.YELLOW.wrap(fmt(v));
+        return Ansi.RED.wrap(fmt(v));
     }
 
-    private static String colorWinRate(double v) {
-        if (v >= 50) return Ansi.GREEN.wrap(pct(v));
-        return Ansi.RED.wrap(pct(v));
+    private static String colorWinRate(final double v) {
+        if (v >= 50) return Ansi.GREEN.wrap(fmt(v));
+        return Ansi.RED.wrap(fmt(v));
     }
 
     // ---------- TEMPLATE ----------
@@ -82,7 +74,7 @@ public class BacktestPrinter {
         """;
 
     // ---------- MAIN PRINT METHOD ----------
-    public void print(final BacktestResult result) {
+    private void print(final BacktestResult result) {
         final var p = result.performance();
         final var r = result.risk();
         final var t = result.trades();
@@ -103,8 +95,8 @@ public class BacktestPrinter {
                 Ansi.YELLOW.code, Ansi.RESET.code,
 
                 colorReturn(p.totalReturnPct()),
-                pct(p.cagr()),
-                num(p.netPnlAfterCosts()),
+                fmt(p.cagr()),
+                fmt(p.netPnlAfterCosts()),
 
                 // Risk header
                 Ansi.BLUE.code, Ansi.RESET.code,
@@ -112,9 +104,9 @@ public class BacktestPrinter {
 
                 colorDrawdown(r.maxDrawdownPct()),
                 r.maxDrawdownDurationDays(),
-                pct(r.volatility()),
+                fmt(r.volatility()),
                 colorSharpe(r.sharpeRatio()),
-                pct(r.sortinoRatio()),
+                fmt(r.sortinoRatio()),
 
                 // Trades header
                 Ansi.BLUE.code, Ansi.RESET.code,
@@ -122,16 +114,16 @@ public class BacktestPrinter {
 
                 t.totalTrades(), t.wins(), t.losses(),
                 colorWinRate(t.winRatePct()),
-                num(t.avgWin()),
-                num(t.avgLoss()),
-                num(t.profitFactor()),
+                fmt(t.avgWin()),
+                fmt(t.avgLoss()),
+                fmt(t.profitFactor()),
 
                 // Execution header
                 Ansi.BLUE.code, Ansi.RESET.code,
                 Ansi.YELLOW.code, Ansi.RESET.code,
 
-                num(e.totalSlippageCost()),
-                num(e.totalFeesCost()),
+                fmt(e.totalSlippageCost()),
+                fmt(e.totalFeesCost()),
                 e.avgTradeDurationDays(),
 
                 // Bottom border

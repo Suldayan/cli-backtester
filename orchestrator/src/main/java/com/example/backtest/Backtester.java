@@ -77,8 +77,13 @@ public class Backtester {
             final long tsEpoch = (long) CandleMemory.TIMESTAMP.get(candleBuffer, candleOffset);
             final LocalDate date = LocalDate.ofEpochDay(tsEpoch);
 
-            if (firstDate == null) firstDate = date;
-            lastDate = date;
+            if (firstDate == null || date.isBefore(firstDate)) {
+                firstDate = date;
+            }
+
+            if (lastDate == null  || date.isAfter(lastDate)) {
+                lastDate = date;
+            }
 
             for (int j = 0; j < indicators.size(); j++) {
                 signal.setIndicator(j, buffers[j].get(ValueLayout.JAVA_DOUBLE, indicatorOffset));

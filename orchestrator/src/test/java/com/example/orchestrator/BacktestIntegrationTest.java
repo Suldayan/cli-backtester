@@ -113,16 +113,6 @@ class BacktestIntegrationTest {
                         bars,
                         strategy
                 ));
-
-        final BacktestResult result = backtester.run(
-                ingestionService.candleBuffer(),
-                ingestionService.closeBuffer(),
-                ingestionService.indicatorBuffers(),
-                bars,
-                strategy
-        );
-
-        backtestPrinter.print(result);
     }
 
     @Test
@@ -138,16 +128,6 @@ class BacktestIntegrationTest {
                         bars,
                         strategy
                 ));
-
-        final BacktestResult result = backtester.run(
-                ingestionService.candleBuffer(),
-                ingestionService.closeBuffer(),
-                ingestionService.indicatorBuffers(),
-                bars,
-                strategy
-        );
-
-        backtestPrinter.print(result);
     }
 
     @Test
