@@ -17,6 +17,6 @@ public record Trade(
         boolean isWin
 ) {
     public long durationDays() {
-        return ChronoUnit.DAYS.between(entryDate, exitDate);
+        return Math.abs(ChronoUnit.DAYS.between(entryDate, exitDate));
     }
 }
