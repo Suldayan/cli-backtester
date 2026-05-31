@@ -24,6 +24,7 @@ public class PersistenceService {
     @EventListener
     @Transactional
     public void onBacktestCompleted(final BacktestCompletedEvent event) {
+        log.debug("Saving results to database");
         persist(event.result(), event.strategy());
     }
 
@@ -57,33 +58,33 @@ public class PersistenceService {
                 :avgTradeDurationDays, :equityCurve
             )
             """)
-                .param("runAt",                    Instant.now().toString())
-                .param("strategyName",             strategy.name())
-                .param("strategyConfig",           toStrategyJson(strategy))
-                .param("symbol",                   m.symbol())
-                .param("periodStart",              m.periodStart() != null ? m.periodStart().toString() : null)
-                .param("periodEnd",                m.periodEnd() != null ? m.periodEnd().toString() : null)
-                .param("barsProcessed",            m.barsProcessed())
-                .param("runtimeMs",                m.computeTimeMs())
-                .param("totalTrades",              t.totalTrades())
-                .param("wins",                     t.wins())
-                .param("losses",                   t.losses())
-                .param("winRatePct",               t.winRatePct())
-                .param("avgWin",                   t.avgWin())
-                .param("avgLoss",                  t.avgLoss())
-                .param("profitFactor",             t.profitFactor())
-                .param("netPnl",                   p.netPnlAfterCosts())
-                .param("totalReturnPct",           p.totalReturnPct())
-                .param("cagr",                     p.cagr())
-                .param("sharpeRatio",              r.sharpeRatio())
-                .param("sortinoRatio",             r.sortinoRatio())
-                .param("maxDrawdownPct",           r.maxDrawdownPct())
-                .param("maxDrawdownDurationDays",  r.maxDrawdownDurationDays())
-                .param("volatility",               r.volatility())
-                .param("totalSlippageCost",        e.totalSlippageCost())
-                .param("totalFeesCost",            e.totalFeesCost())
-                .param("avgTradeDurationDays",     e.avgTradeDurationDays())
-                .param("equityCurve",              toEquityCurveJson(result))
+                .param("runAt", Instant.now().toString())
+                .param("strategyName", strategy.name())
+                .param("strategyConfig", toStrategyJson(strategy))
+                .param("symbol", m.symbol())
+                .param("periodStart", m.periodStart() != null ? m.periodStart().toString() : null)
+                .param("periodEnd", m.periodEnd() != null ? m.periodEnd().toString() : null)
+                .param("barsProcessed", m.barsProcessed())
+                .param("runtimeMs", m.computeTimeMs())
+                .param("totalTrades", t.totalTrades())
+                .param("wins", t.wins())
+                .param("losses", t.losses())
+                .param("winRatePct", t.winRatePct())
+                .param("avgWin", t.avgWin())
+                .param("avgLoss", t.avgLoss())
+                .param("profitFactor", t.profitFactor())
+                .param("netPnl", p.netPnlAfterCosts())
+                .param("totalReturnPct", p.totalReturnPct())
+                .param("cagr", p.cagr())
+                .param("sharpeRatio", r.sharpeRatio())
+                .param("sortinoRatio", r.sortinoRatio())
+                .param("maxDrawdownPct", r.maxDrawdownPct())
+                .param("maxDrawdownDurationDays", r.maxDrawdownDurationDays())
+                .param("volatility", r.volatility())
+                .param("totalSlippageCost", e.totalSlippageCost())
+                .param("totalFeesCost", e.totalFeesCost())
+                .param("avgTradeDurationDays", e.avgTradeDurationDays())
+                .param("equityCurve", toEquityCurveJson(result))
                 .update();
 
         log.info("Run persisted — strategy: {} | symbol: {}", strategy.name(), m.symbol());
