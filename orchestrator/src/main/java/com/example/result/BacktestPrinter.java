@@ -1,6 +1,8 @@
 package com.example.result;
 
+import com.example.backtest.BacktestCompletedEvent;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.text.DecimalFormat;
@@ -8,6 +10,12 @@ import java.text.DecimalFormat;
 @Slf4j
 @Component
 public class BacktestPrinter {
+
+    @EventListener
+    public void onBacktestCompleted(final BacktestCompletedEvent event) {
+        print(event.result());
+    }
+
     // ---------- NUMBER FORMATTING ----------
     private static final DecimalFormat TWO_DEC = new DecimalFormat("#0.00");
 

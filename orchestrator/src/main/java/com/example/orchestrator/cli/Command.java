@@ -16,18 +16,16 @@ public class Command implements CommandLineRunner {
     private final IngestionService ingestionService;
     private final StrategyParser   strategyParser;
     private final Backtester backtester;
-    private final BacktestPrinter backtestPrinter;
 
     private static final int EXPECTED_ARGS = 2;
 
     public Command(
             final IngestionService ingestionService,
             final StrategyParser strategyParser,
-            final Backtester backtester, BacktestPrinter backtestPrinter) {
+            final Backtester backtester) {
         this.ingestionService = ingestionService;
         this.strategyParser = strategyParser;
         this.backtester = backtester;
-        this.backtestPrinter = backtestPrinter;
     }
 
     @Override
@@ -42,14 +40,12 @@ public class Command implements CommandLineRunner {
 
         final int totalBars = ingestionService.processCSV(args[0]);
 
-        final BacktestResult result = backtester.run(
+        backtester.run(
                 ingestionService.candleBuffer(),
                 ingestionService.closeBuffer(),
                 ingestionService.indicatorBuffers(),
                 totalBars,
                 strategy
         );
-
-        backtestPrinter.print(result);
     }
 }

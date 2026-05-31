@@ -9,6 +9,7 @@ import com.example.result.EquityPoint;
 import com.example.result.Trade;
 import com.example.strategy.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.lang.foreign.MemorySegment;
@@ -24,11 +25,13 @@ public class Backtester {
     private final NativeBridge nativeBridge;
     private final MetricsCalculator metricsCalculator;
     private final IndicatorResolver indicatorResolver;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public Backtester(final NativeBridge nativeBridge, final MetricsCalculator metricsCalculator, IndicatorResolver indicatorResolver) {
+    public Backtester(final NativeBridge nativeBridge, final MetricsCalculator metricsCalculator, IndicatorResolver indicatorResolver, ApplicationEventPublisher eventPublisher) {
         this.nativeBridge = nativeBridge;
         this.metricsCalculator = metricsCalculator;
         this.indicatorResolver = indicatorResolver;
+        this.eventPublisher = eventPublisher;
     }
 
     public BacktestResult run(
@@ -112,10 +115,13 @@ public class Backtester {
 
         final long computeTimeMs = System.currentTimeMillis() - startTime;
 
-        return metricsCalculator.calculate(
+        final BacktestResult result = metricsCalculator.calculate(
                 trades, equityCurve, strategy,
                 firstDate, lastDate, totalBars, computeTimeMs
         );
+
+        eventPublisher.publishEvent(new BacktestCompletedEvent(result, strategy));
+        return result;
     }
 
     private Trade buildTrade(

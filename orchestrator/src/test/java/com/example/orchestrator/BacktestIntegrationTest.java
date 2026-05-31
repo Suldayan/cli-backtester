@@ -263,8 +263,6 @@ class BacktestIntegrationTest {
         assertThat(result.metadata().symbol()).isEqualTo("AAPL");
     }
 
-    // --- Helpers ---
-
     private String resourcePath(final String relativePath) {
         final URL resource = getClass().getClassLoader().getResource(relativePath);
         assertThat(resource).as("Test resource not found: " + relativePath).isNotNull();
