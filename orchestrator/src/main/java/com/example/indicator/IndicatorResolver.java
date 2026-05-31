@@ -23,6 +23,7 @@ public final class IndicatorResolver {
             case "SMA" -> nativeBridge.getMomentumFunctions().sma;
             case "EMA" -> nativeBridge.getMomentumFunctions().ema;
             case "ROC" -> nativeBridge.getMomentumFunctions().roc;
+            case "RSI" -> nativeBridge.getMomentumFunctions().rsi;
             default -> throw new IllegalArgumentException("Unsupported indicator: " + indicator);
         };
     }

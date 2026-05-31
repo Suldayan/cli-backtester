@@ -93,7 +93,7 @@ public class Backtester {
                 entryPrice  = price;
                 entryDate   = date;
                 inPosition  = true;
-                log.info("BUY  @ {} | price: {} | indicators: {}",
+                log.debug("BUY  @ {} | price: {} | indicators: {}",
                         date, String.format("%.2f", price), formatIndicators(indicators, signal));
 
             } else if (closeSignal && inPosition) {
@@ -103,7 +103,7 @@ public class Backtester {
                 trades.add(trade);
                 capital += trade.netPnl();
                 inPosition = false;
-                log.info("SELL @ {} | price: {} | indicators: {} | PnL: {}",
+                log.debug("SELL @ {} | price: {} | indicators: {} | PnL: {}",
                         date, String.format("%.2f", price),
                         formatIndicators(indicators, signal),
                         String.format("%.2f", trade.netPnl()));

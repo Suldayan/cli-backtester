@@ -244,6 +244,25 @@ class BacktestIntegrationTest {
                 .isEqualTo(strategy.execution().initialCapital());
     }
 
+    @Test
+    void rsiStrategy_completesAndProducesTrades() {
+        final Strategy strategy = strategyParser.parse(
+                resourcePath("strategies/rsi_strategy.json"));
+        final int bars = ingestionService.processCSV(resourcePath("data/AAPL.csv"));
+
+        final BacktestResult result = backtester.run(
+                ingestionService.candleBuffer(),
+                ingestionService.closeBuffer(),
+                ingestionService.indicatorBuffers(),
+                bars,
+                strategy
+        );
+
+        assertThat(result.trades().totalTrades()).isGreaterThanOrEqualTo(0);
+        assertThat(result.risk().maxDrawdownPct()).isGreaterThanOrEqualTo(0.0);
+        assertThat(result.metadata().symbol()).isEqualTo("AAPL");
+    }
+
     // --- Helpers ---
 
     private String resourcePath(final String relativePath) {

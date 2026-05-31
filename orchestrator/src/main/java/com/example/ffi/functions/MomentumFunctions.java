@@ -9,6 +9,7 @@ public final class MomentumFunctions {
     public final MethodHandle roc;
     public final MethodHandle macd;
     public final MethodHandle stochastic;
+    public final MethodHandle rsi;
 
     // (ADDRESS=prices, JAVA_LONG=len, JAVA_LONG=window, ADDRESS=out)
     private static final FunctionDescriptor SMA_DESC = FunctionDescriptor.ofVoid(
@@ -48,7 +49,15 @@ public final class MomentumFunctions {
             ValueLayout.ADDRESS
     );
 
+    private static final FunctionDescriptor RSI_DESC = FunctionDescriptor.ofVoid(
+            ValueLayout.ADDRESS,
+            ValueLayout.JAVA_LONG,
+            ValueLayout.JAVA_LONG,
+            ValueLayout.ADDRESS
+    );
+
     public MomentumFunctions(final SymbolLookup lib, final Linker linker) {
+        this.rsi = load(lib, linker, "compute_rsi", RSI_DESC);
         this.sma = load(lib, linker, "compute_sma", SMA_DESC);
         this.ema = load(lib, linker, "compute_ema", EMA_DESC);
         this.roc = load(lib, linker, "compute_roc", ROC_DESC);

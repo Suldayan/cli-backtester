@@ -34,7 +34,8 @@ public class IngestionServiceImpl implements IngestionService {
         this.indicatorBuffers = Map.of(
                 "SMA", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE),
                 "EMA", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE),
-                "ROC", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE)
+                "ROC", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE),
+                "RSI", arena.allocate(ValueLayout.JAVA_DOUBLE, BATCH_SIZE)
         );
     }
 
