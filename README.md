@@ -31,7 +31,7 @@ A command-line backtesting engine built with **Java 25** and **Rust**, using **P
 ══════════════════════════════════════════════
 ```
 
-Results are written to `backtester.db` after each run and can be queried across strategies:
+Results are written to `backtester.db` after each run and can be queried across strategies but also appear inside the terminal as seen above:
 
 ```sql
 SELECT strategy_name, MAX(sharpe_ratio) AS best_sharpe, AVG(net_pnl) AS avg_pnl
