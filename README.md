@@ -252,24 +252,35 @@ Open `backtester.db` in [DB Browser for SQLite](https://sqlitebrowser.org/) to b
 **Prerequisites:** Java 25+, Rust (stable), Maven
 
 ```bash
-# 1. Build the Rust engine
-cd engine && cargo build --release
+# Clone the repo
+git clone https://github.com/yourusername/cli-backtester.git
+cd cli-backtester
 
-# 2. Run a backtest
-./mvnw spring-boot:run --args="path/to/OHLCV.csv path/to/strategy.json"
+# Build everything — Rust compiles automatically via exec-maven-plugin
+./mvnw.cmd package -pl orchestrator    # Windows
+./mvnw package -pl orchestrator        # Mac / Linux
 
-# 3. Run tests (requires Rust library compiled first)
-./mvnw clean test
+# Run a backtest using the included sample data
+
+# Windows
+./mvnw.cmd spring-boot:run -pl orchestrator "-Dspring-boot.run.arguments=samples/data/monthly_adjusted_IBM.csv samples/strategies/golden_cross.json"
+
+# Mac / Linux
+./mvnw spring-boot:run -pl orchestrator -Dspring-boot.run.arguments="samples/data/monthly_adjusted_IBM.csv samples/strategies/golden_cross.json"
+
+# Run tests
+./mvnw.cmd test -pl orchestrator       # Windows
+./mvnw test -pl orchestrator           # Mac / Linux
 ```
 
-CSV format expected:
-```
-timestamp,open,high,low,close,volume
-2026-03-09,220.83,221.86,218.27,220.45,39818900
-```
+Sample strategies included in `orchestrator/samples/strategies/`:
 
----
-
+| Strategy | Indicators | Logic |
+|----------|-----------|-------|
+| `rsi_oversold.json` | RSI(14) | Buy oversold, sell overbought |
+| `golden_cross.json` | SMA(50) | Classic momentum |
+| `sma_rsi_confluence.json` | RSI(14) + SMA(20) | Composite AND / OR |
+| `ema_momentum.json` | EMA(12) | EMA trend following |
 ## Project structure
 
 ```
