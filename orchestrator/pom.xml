@@ -109,6 +109,28 @@
 					<mainClass>com.example.orchestrator.OrchestratorApplication</mainClass>
 				</configuration>
 			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>3.6.3</version>
+				<executions>
+					<execution>
+						<id>build-rust-engine</id>
+						<phase>generate-resources</phase>
+						<goals>
+							<goal>exec</goal>
+						</goals>
+						<configuration>
+							<executable>cargo</executable>
+							<arguments>
+								<argument>build</argument>
+								<argument>--release</argument>
+							</arguments>
+							<workingDirectory>${project.basedir}/../engine</workingDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 

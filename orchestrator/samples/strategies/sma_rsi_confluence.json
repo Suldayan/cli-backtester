@@ -1,0 +1,55 @@
+{
+  "name": "RSI + SMA Confluence",
+  "symbol": "AAPL",
+  "open": {
+    "type": "composite",
+    "operator": "AND",
+    "conditions": [
+      {
+        "type": "simple",
+        "indicator": "RSI",
+        "period": 14,
+        "condition": "CROSSES_BELOW",
+        "target": { "value": 45.0 }
+      },
+      {
+        "type": "simple",
+        "indicator": "SMA",
+        "period": 20,
+        "condition": "CROSSES_ABOVE",
+        "target": { "value": 80.0 }
+      }
+    ]
+  },
+  "close": {
+    "type": "composite",
+    "operator": "OR",
+    "conditions": [
+      {
+        "type": "simple",
+        "indicator": "RSI",
+        "period": 14,
+        "condition": "CROSSES_ABOVE",
+        "target": { "value": 65.0 }
+      },
+      {
+        "type": "simple",
+        "indicator": "SMA",
+        "period": 20,
+        "condition": "CROSSES_BELOW",
+        "target": { "value": 60.0 }
+      }
+    ]
+  },
+  "risk": {
+    "stop_loss_pct": 2.5,
+    "take_profit_pct": 6.0,
+    "position_size_pct": 12.0
+  },
+  "execution": {
+    "initial_capital": 10000.0,
+    "slippage_pct": 0.1,
+    "fee_pct": 0.05,
+    "risk_free_rate": 0.0
+  }
+}
