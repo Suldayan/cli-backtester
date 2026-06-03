@@ -2,10 +2,6 @@
 
 A command-line backtesting engine built with **Java 25** and **Rust**, using **Project Panama (JEP 454)** for zero-copy native interop. Define a strategy in JSON, point it at OHLCV data, get a full performance report back. Results are persisted to SQLite so runs accumulate over time and can be queried across strategy configurations.
 
-```bash
-./mvnw spring-boot:run --args="data/AAPL.csv strategies/rsi_strategy.json"
-```
-
 ```
 ══════════════════════════════════════════════
  Backtest Completed - AAPL
